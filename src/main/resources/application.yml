@@ -1,0 +1,48 @@
+# spring jpa
+spring:
+  datasource:
+    password: 12345
+    username: postgres
+    url: jdbc:postgresql://localhost:5432/start-up
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 849997286114-ohe65bm0cercm3q9s1pu0fg3e9ujlvbf.apps.googleusercontent.com
+            client-secret: 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
+            redirect-uri: https://www.vistager.com/login/oauth2/code/google
+            scope:
+              - email
+              - profile
+  application:
+    name: user-auth-service
+
+auth:
+  redirect:
+    success: http://localhost:3000
+
+
+#eureka:
+#  client:
+#    serviceUrl:
+#      defaultZone: http://localhost:8761/eureka/
+
+
+# JWT
+jwt:
+  token:
+    signing:
+      key: 7EFE8194CE56BC22F6AC6AAB265DC7EFE8194CE56BC
+    timeToLive: 84600   # in seconds
+
+# email confirmation token
+confirmation:
+  token:
+    timeToLive: 15   # in minutes
+
+server:
+  port: 8082

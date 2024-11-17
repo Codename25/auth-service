@@ -1,0 +1,177 @@
+version: "3.8"
+
+services:
+
+  # database for authentication service
+  auth-service-postgres-db:
+    image: 1aughingbird543/register-service-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=$AUTH_SERVICE_POSTGRES_USER
+      - POSTGRES_PASSWORD=$AUTH_SERVICE_POSTGRES_PASSWORD
+      - POSTGRES_DB=$AUTH_SERVICE_POSTGRES_DATABASE
+    container_name: auth-postgres-db
+    networks:
+      - my-network
+    ports:
+      - $AUTH_SERVICE_POSTGRES_LOCAL_PORT:$AUTH_SERVICE_POSTGRES_DOCKER_PORT
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 300s
+      timeout: 60s
+      retries: 3
+
+#  # represent temp AI
+#  vistagerapp:
+#    image: 1aughingbird543/vistagerapp
+#    container_name: vistagerapp
+#    networks:
+#      - my-network
+#    build: .
+#    ports:
+#      - 5000:5000
+#
+#  # queue
+#  ai-queue:
+#    image: 1aughingbird543/ai-queue
+#    container_name: ai-queue
+#    networks:
+#      - my-network
+#    build: .
+#    ports:
+#      - 8085:8085
+
+  #  authentication service
+  auth-service:
+    depends_on:
+      - auth-service-postgres-db
+    restart: on-failure
+    image: 1aughingbird543/auth-service
+    networks:
+      - my-network
+    build:
+      context: .
+    env_file:
+      - .env
+    container_name: auth-service
+    ports:
+      - $SPRING_AUTH_SERVICE_LOCAL_PORT:$SPRING_AUTH_SERVICE_LOCAL_PORT
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.datasource.url" : "jdbc:postgresql://auth-service-postgres-db:$AUTH_SERVICE_POSTGRES_DOCKER_PORT/$AUTH_SERVICE_POSTGRES_DATABASE",
+        "spring.datasource.username" : "$AUTH_SERVICE_POSTGRES_USER",
+        "spring.datasource.password" : "$AUTH_SERVICE_POSTGRES_PASSWORD",
+        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.PostgreSQLDialect",
+        "token.signing.key" : "$JWT_SECRET",
+        "spring.security.oauth2.client.registration.google.clientId" : "$GOOGLE_CLIENT_ID",
+        "spring.security.oauth2.client.registration.google.clientSecret" : "$GOOGLE_SECRET"
+      }'
+
+  # api-gateway
+  api-gateway:
+    depends_on:
+      - auth-service-postgres-db
+    restart: on-failure
+    image: 1aughingbird543/api-gateway
+    build:
+      context: .
+    env_file: .env
+    container_name: api-gateway
+    networks:
+      - my-network
+    ports:
+      - $SPRING_API_GATEWAY_LOCAL_PORT:$SPRING_API_GATEWAY_DOCKER_PORT
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.datasource.url" : "jdbc:postgresql://auth-service-postgres-db:$AUTH_SERVICE_POSTGRES_DOCKER_PORT/$AUTH_SERVICE_POSTGRES_DATABASE",
+        "spring.datasource.username" : "$AUTH_SERVICE_POSTGRES_USER",
+        "spring.datasource.password" : "$AUTH_SERVICE_POSTGRES_PASSWORD",
+        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.PostgreSQLDialect",
+        "token.signing.key" : "$JWT_SECRET"
+      }'
+
+  # email-service
+  email-service:
+    image: 1aughingbird543/email-service
+    build:
+      context: .
+    restart: on-failure
+    env_file: .env
+    container_name: email-service
+    networks:
+      - my-network
+    ports:
+      - $SPRING_EMAIL_SERVICE_LOCAL_PORT:$SPRING_EMAIL_SERVICE_LOCAL_PORT
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.datasource.url" : "jdbc:postgresql://auth-service-postgres-db:$AUTH_SERVICE_POSTGRES_DOCKER_PORT/$AUTH_SERVICE_POSTGRES_DATABASE",
+        "spring.datasource.username" : "$AUTH_SERVICE_POSTGRES_USER",
+        "spring.datasource.password" : "$AUTH_SERVICE_POSTGRES_PASSWORD",
+        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.PostgreSQLDialect",
+        "spring.mail.username" : "$SMTP_SERVER_USERNAME",
+        "spring.mail.password" : "$SMTP_SERVER_PASSWORD"
+      }'
+
+#  front-end:
+#    image: a1oney/startup
+#    build: .
+#    restart: on-failure
+#    container_name: frontend
+#    ports:
+#      - 3000:80
+
+
+
+#  # collect-data service
+#  data_samples_db:
+#    image: sviatoslav448/postgres_data_samples
+#    restart: unless-stopped
+#    env_file: ./.env
+#    environment:
+#      - POSTGRES_USER=$POSTGRES_COLLECT_DATA_USER
+#      - POSTGRES_PASSWORD=$POSTGRES_COLLECT_DATA_PASSWORD
+#      - POSTGRES_DB=$POSTGRES_COLLECT_DATA_DATABASE
+#    container_name: data_samples_db
+#
+#    ports:
+#      - $POSTGRES_COLLECT_DATA_LOCAL_PORT:$POSTGRES_COLLECT_DATA_DOCKER_PORT
+#    volumes:
+#      - postgres-collect-data:/var/lib/postgresql/data
+#    healthcheck:
+#      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+#      interval: 300s
+#      timeout: 60s
+#      retries: 3
+#  collect-data-service:
+#    image: sviatoslav448/collect_data_service
+#    build:
+#      context: .
+#    depends_on:
+#      - data_samples_db
+#    restart: on-failure
+#    env_file: ./.env
+#    container_name: collect_data_sample
+#    ports:
+#      - $SPRING_COLLECT_DATA_LOCAL_PORT:$SPRING_COLLECT_DATA_DOCKER_PORT
+#    environment:
+#      SPRING_APPLICATION_JSON: '{
+#        "spring.datasource.url" : "jdbc:postgresql://data_samples_db:$POSTGRES_COLLECT_DATA_DOCKER_PORT/$POSTGRES_COLLECT_DATA_DATABASE",
+#        "spring.datasource.username" : "$POSTGRES_COLLECT_DATA_USER",
+#        "spring.datasource.password" : "$POSTGRES_COLLECT_DATA_PASSWORD",
+#        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.PostgreSQLDialect"
+#      }'
+#      AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+#      AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+#
+
+volumes:
+  postgres-data:
+  postgres:
+
+networks:
+  my-network:
+    driver: bridge
